@@ -1,0 +1,13 @@
+{
+  "name": "research-prj",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev:frontend": "pnpm --dir frontend dev",
+    "dev:backend": "pnpm --dir backend dev",
+    "build:frontend": "pnpm --dir frontend build",
+    "build:backend": "pnpm --dir backend build",
+    "test:frontend": "pnpm --dir frontend test",
+    "test:backend": "pnpm --dir backend test"
+  }
+}
