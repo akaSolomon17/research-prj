@@ -5,21 +5,25 @@ import { getProfile, updateProfile } from "@/features/Profile/api";
 
 interface OrderSummary {
   total: number;
-  pending: number;
-  completed: number;
-  cancelled: number;
+  totalSpent: number;
+  totalQuantity: number;
+  averageOrderValue: number;
 }
 
 export const ProfilePage = () => {
   const { session, refreshProfile } = useAuth();
-  const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [avatarUrl, setAvatarUrl] = useState("");
+  const [name, setName] = useState("");
+  const [address, setAddress] = useState("");
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("");
+  const [zip, setZip] = useState("");
+  const [source, setSource] = useState("");
+  const [birthDate, setBirthDate] = useState("");
   const [summary, setSummary] = useState<OrderSummary>({
     total: 0,
-    pending: 0,
-    completed: 0,
-    cancelled: 0,
+    totalSpent: 0,
+    totalQuantity: 0,
+    averageOrderValue: 0,
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -33,9 +37,13 @@ export const ProfilePage = () => {
     setLoading(true);
     void getProfile(session.accessToken)
       .then((payload) => {
-        setFullName(payload.profile.full_name ?? "");
-        setPhone(payload.profile.phone ?? "");
-        setAvatarUrl(payload.profile.avatar_url ?? "");
+        setName(payload.profile.name ?? "");
+        setAddress(payload.profile.address ?? "");
+        setCity(payload.profile.city ?? "");
+        setState(payload.profile.state ?? "");
+        setZip(payload.profile.zip ?? "");
+        setSource(payload.profile.source ?? "");
+        setBirthDate(payload.profile.birth_date ?? "");
         setSummary(payload.orderSummary);
         setError(null);
       })
@@ -58,9 +66,13 @@ export const ProfilePage = () => {
     setMessage(null);
     try {
       await updateProfile(session.accessToken, {
-        fullName: fullName.trim(),
-        phone: phone.trim(),
-        avatarUrl: avatarUrl.trim(),
+        name: name.trim() || undefined,
+        address: address.trim() || undefined,
+        city: city.trim() || undefined,
+        state: state.trim() || undefined,
+        zip: zip.trim() || undefined,
+        source: source.trim() || undefined,
+        birthDate: birthDate.trim() || undefined,
       });
       await refreshProfile();
       setMessage("Profile updated.");
@@ -74,71 +86,158 @@ export const ProfilePage = () => {
 
   return (
     <section className="space-y-6">
-      <header>
-        <h1 className="font-heading text-3xl font-bold text-slate-900">Profile</h1>
-        <p className="mt-2 text-sm text-slate-500">
-          Edit your account profile and review your personal order summary.
-        </p>
+      <header className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white px-6 py-6 md:flex-row md:items-end md:justify-between">
+        <div className="space-y-2">
+          <span className="chip">Personal record</span>
+          <h1 className="font-heading text-3xl font-bold text-slate-900">Profile</h1>
+          <p className="max-w-2xl text-sm leading-6 text-slate-500">
+            Edit your personal record and review your order summary without touching order CRUD.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <p className="text-xs uppercase tracking-wider text-slate-500">Orders</p>
+            <p className="mt-1 text-lg font-semibold text-slate-900">{summary.total}</p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <p className="text-xs uppercase tracking-wider text-slate-500">Spent</p>
+            <p className="mt-1 text-lg font-semibold text-slate-900">${summary.totalSpent.toLocaleString()}</p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <p className="text-xs uppercase tracking-wider text-slate-500">Quantity</p>
+            <p className="mt-1 text-lg font-semibold text-slate-900">{summary.totalQuantity}</p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <p className="text-xs uppercase tracking-wider text-slate-500">Average</p>
+            <p className="mt-1 text-lg font-semibold text-slate-900">${summary.averageOrderValue.toLocaleString()}</p>
+          </div>
+        </div>
       </header>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="panel p-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total orders</p>
-          <p className="mt-2 font-heading text-2xl font-bold text-slate-900">{summary.total}</p>
-        </div>
-        <div className="panel p-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Pending</p>
-          <p className="mt-2 font-heading text-2xl font-bold text-amber-600">{summary.pending}</p>
-        </div>
-        <div className="panel p-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Completed</p>
-          <p className="mt-2 font-heading text-2xl font-bold text-emerald-600">{summary.completed}</p>
-        </div>
-        <div className="panel p-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Cancelled</p>
-          <p className="mt-2 font-heading text-2xl font-bold text-rose-600">{summary.cancelled}</p>
-        </div>
-      </div>
+      <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+        <aside className="panel-strong space-y-4 p-5">
+          <div className="space-y-2">
+            <h2 className="font-heading text-xl font-semibold text-slate-900">Quick profile summary</h2>
+            <p className="text-sm text-slate-500">
+              These fields map directly to the `people` table and can be updated independently from orders.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <p className="text-xs uppercase tracking-wider text-slate-500">Email</p>
+              <p className="mt-1 truncate text-sm font-semibold text-slate-900">{session?.user.email ?? "-"}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <p className="text-xs uppercase tracking-wider text-slate-500">Role</p>
+              <p className="mt-1 text-sm font-semibold text-slate-900">{session?.user.role ?? "user"}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <p className="text-xs uppercase tracking-wider text-slate-500">Location</p>
+              <p className="mt-1 text-sm font-semibold text-slate-900">
+                {[city, state].filter(Boolean).join(", ") || "-"}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <p className="text-xs uppercase tracking-wider text-slate-500">Birth date</p>
+              <p className="mt-1 text-sm font-semibold text-slate-900">{birthDate || "-"}</p>
+            </div>
+          </div>
+        </aside>
 
-      <div className="panel p-5">
+        <div className="panel-strong p-5">
         {loading ? (
           <p className="text-sm text-slate-500">Loading profile...</p>
         ) : (
           <form className="grid gap-4 sm:grid-cols-2" onSubmit={onSubmit}>
+            <div className="sm:col-span-2">
+              <h2 className="font-heading text-xl font-semibold text-slate-900">Editable fields</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Keep this aligned with the table schema and Supabase data model.
+              </p>
+            </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="full-name">
+              <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="name">
                 Full name
               </label>
               <input
-                id="full-name"
+                id="name"
                 className="field"
-                data-atid="profile-full-name"
-                value={fullName}
-                onChange={(event) => setFullName(event.target.value)}
+                data-atid="profile-name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="phone">
-                Phone
+              <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="address">
+                Address
               </label>
               <input
-                id="phone"
+                id="address"
                 className="field"
-                data-atid="profile-phone"
-                value={phone}
-                onChange={(event) => setPhone(event.target.value)}
+                data-atid="profile-address"
+                value={address}
+                onChange={(event) => setAddress(event.target.value)}
               />
             </div>
-            <div className="sm:col-span-2">
-              <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="avatar-url">
-                Avatar URL
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="city">
+                City
               </label>
               <input
-                id="avatar-url"
+                id="city"
                 className="field"
-                data-atid="profile-avatar-url"
-                value={avatarUrl}
-                onChange={(event) => setAvatarUrl(event.target.value)}
+                data-atid="profile-city"
+                value={city}
+                onChange={(event) => setCity(event.target.value)}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="state">
+                State
+              </label>
+              <input
+                id="state"
+                className="field"
+                data-atid="profile-state"
+                value={state}
+                onChange={(event) => setState(event.target.value)}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="zip">
+                ZIP
+              </label>
+              <input
+                id="zip"
+                className="field"
+                data-atid="profile-zip"
+                value={zip}
+                onChange={(event) => setZip(event.target.value)}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="source">
+                Source
+              </label>
+              <input
+                id="source"
+                className="field"
+                data-atid="profile-source"
+                value={source}
+                onChange={(event) => setSource(event.target.value)}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="birth-date">
+                Birth date
+              </label>
+              <input
+                id="birth-date"
+                className="field"
+                data-atid="profile-birth-date"
+                value={birthDate}
+                onChange={(event) => setBirthDate(event.target.value)}
+                type="date"
               />
             </div>
             <div className="sm:col-span-2 flex items-center gap-3">
@@ -150,6 +249,7 @@ export const ProfilePage = () => {
             </div>
           </form>
         )}
+        </div>
       </div>
     </section>
   );

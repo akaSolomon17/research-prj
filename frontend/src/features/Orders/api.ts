@@ -1,17 +1,17 @@
 import { request } from "@/shared/api/http";
-import type { Order, OrderStatus, PaginatedOrders } from "@/shared/types/models";
+import type { Order, PaginatedOrders, Product } from "@/shared/types/models";
 
 interface OrderQuery {
   page: number;
   limit: number;
   search: string;
-  status: "all" | OrderStatus;
 }
 
 interface OrderMutationInput {
-  title: string;
-  amount: number;
-  status: OrderStatus;
+  userId?: string;
+  productId: string;
+  quantity: number;
+  discount: number;
 }
 
 const toSearchParams = (query: OrderQuery) => {
@@ -20,9 +20,6 @@ const toSearchParams = (query: OrderQuery) => {
   params.set("limit", String(query.limit));
   if (query.search.trim()) {
     params.set("search", query.search.trim());
-  }
-  if (query.status !== "all") {
-    params.set("status", query.status);
   }
   return params.toString();
 };
@@ -50,5 +47,11 @@ export const updateOrder = (accessToken: string, id: string, payload: OrderMutat
 export const deleteOrder = (accessToken: string, id: string) =>
   request<void>(`/api/v1/orders/${id}`, {
     method: "DELETE",
+    accessToken,
+  });
+
+export const fetchProducts = (accessToken: string) =>
+  request<Product[]>("/api/v1/products", {
+    method: "GET",
     accessToken,
   });

@@ -3,42 +3,41 @@
 --    - admin@demo.com
 --    - user@demo.com
 --    - solomon@demo.com (optional)
--- 2) Then run this seed script.
+-- 2) Set their passwords to the demo values you want to use.
+-- 3) Then run this seed script.
 
-insert into public.profiles (id, full_name, phone, role)
-select
-  u.id,
-  case
-    when u.email = 'admin@demo.com' then 'Admin Demo'
-    when u.email = 'solomon@demo.com' then 'Solomon Demo'
-    else 'User Demo'
-  end as full_name,
-  '+8400000000',
-  case
-    when u.email = 'admin@demo.com' then 'admin'
-    else 'user'
-  end as role
-from auth.users u
-where u.email in ('admin@demo.com', 'user@demo.com', 'solomon@demo.com')
-on conflict (id) do update
+update auth.users
 set
-  full_name = excluded.full_name,
-  phone = excluded.phone,
-  role = excluded.role,
-  updated_at = timezone('utc'::text, now());
+  raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb)
+    || jsonb_build_object(
+      'role',
+      case
+        when email = 'admin@demo.com' then 'admin'
+        else 'user'
+      end
+    ),
+  raw_user_meta_data = coalesce(raw_user_meta_data, '{}'::jsonb)
+    || jsonb_build_object(
+      'display_name',
+      case
+        when email = 'admin@demo.com' then 'Admin Demo'
+        when email = 'solomon@demo.com' then 'Solomon Demo'
+        else 'User Demo'
+      end
+    )
+where email in ('admin@demo.com', 'user@demo.com', 'solomon@demo.com');
 
 insert into public.people (
   id,
   address,
   email,
+  password,
   name,
   city,
-  longitude,
   state,
   source,
   birth_date,
-  zip,
-  latitude
+  zip
 )
 select
   u.id,
@@ -49,31 +48,33 @@ select
   end as address,
   u.email,
   case
+    when u.email = 'admin@demo.com' then 'secret123'
+    when u.email = 'solomon@demo.com' then 'solomon123'
+    else 'user12345'
+  end as password,
+  case
     when u.email = 'admin@demo.com' then 'Admin Demo'
     when u.email = 'solomon@demo.com' then 'Solomon Demo'
     else 'User Demo'
   end as name,
   'Ho Chi Minh City',
-  106.700000,
   'HCM',
   'supabase-auth',
   date '1995-01-01',
-  '700000',
-  10.770000
+  '700000'
 from auth.users u
 where u.email in ('admin@demo.com', 'user@demo.com', 'solomon@demo.com')
 on conflict (id) do update
 set
   address = excluded.address,
   email = excluded.email,
+  password = excluded.password,
   name = excluded.name,
   city = excluded.city,
-  longitude = excluded.longitude,
   state = excluded.state,
   source = excluded.source,
   birth_date = excluded.birth_date,
-  zip = excluded.zip,
-  latitude = excluded.latitude;
+  zip = excluded.zip;
 
 insert into public.products (ean, title, category, vendor, price, rating)
 values
@@ -91,7 +92,7 @@ set
   price = excluded.price,
   rating = excluded.rating;
 
-with seeded_users as (
+with seeded_people as (
   select p.id, p.email
   from public.people p
   where p.email in ('admin@demo.com', 'user@demo.com', 'solomon@demo.com')
@@ -106,14 +107,15 @@ seeded_products as (
 ),
 order_input as (
   select
-    su.id as user_id,
-    su.email,
-    gs as seq,
     sp.id as product_id,
     sp.title as product_title,
     sp.price as product_price,
+    sp.rn,
+    pe.id as user_id,
+    pe.email,
+    gs as seq,
     ((gs % 3) + 1) as quantity
-  from seeded_users su
+  from seeded_people pe
   cross join generate_series(1, 6) gs
   join seeded_products sp
     on sp.rn = (((gs - 1) % 6) + 1)
@@ -121,64 +123,22 @@ order_input as (
 insert into public.orders (
   user_id,
   product_id,
-  code,
-  title,
   subtotal,
   tax,
-  total,
   discount,
   quantity,
-  amount,
-  status,
-  created_at,
-  updated_at
+  created_at
 )
 select
   oi.user_id,
   oi.product_id,
-  'ORD-' || substr(md5(oi.email || '-' || oi.seq::text), 1, 8),
-  oi.product_title,
   round((oi.product_price * oi.quantity)::numeric, 2) as subtotal,
   round((oi.product_price * oi.quantity * 0.10)::numeric, 2) as tax,
-  round(
-    (
-      oi.product_price * oi.quantity
-      + oi.product_price * oi.quantity * 0.10
-      - case when oi.seq % 2 = 0 then 5 else 0 end
-    )::numeric,
-    2
-  ) as total,
   case when oi.seq % 2 = 0 then 5 else 0 end as discount,
   oi.quantity,
-  round(
-    (
-      oi.product_price * oi.quantity
-      + oi.product_price * oi.quantity * 0.10
-      - case when oi.seq % 2 = 0 then 5 else 0 end
-    )::numeric,
-    2
-  ) as amount,
-  case
-    when oi.seq % 3 = 0 then 'completed'
-    when oi.seq % 3 = 1 then 'pending'
-    else 'cancelled'
-  end as status,
-  timezone('utc'::text, now()) - ((7 - oi.seq) || ' days')::interval,
   timezone('utc'::text, now()) - ((7 - oi.seq) || ' days')::interval
 from order_input oi
-on conflict (code) do update
-set
-  user_id = excluded.user_id,
-  product_id = excluded.product_id,
-  title = excluded.title,
-  subtotal = excluded.subtotal,
-  tax = excluded.tax,
-  total = excluded.total,
-  discount = excluded.discount,
-  quantity = excluded.quantity,
-  amount = excluded.amount,
-  status = excluded.status,
-  updated_at = timezone('utc'::text, now());
+on conflict do nothing;
 
 insert into public.reviews (product_id, reviewer, rating, body, created_at)
 select

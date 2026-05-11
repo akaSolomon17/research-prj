@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 
-import { createSupabaseAdminClient, createSupabaseUserClient } from "../lib/supabase.js";
-import { sendForbidden, sendUnauthorized } from "../utils/http.js";
+import { createSupabaseAdminClient } from "../lib/supabase.js";
+import { sendUnauthorized } from "../utils/http.js";
 
 const parseBearerToken = (headerValue?: string): string | null => {
   if (!headerValue) {
@@ -26,21 +26,12 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
     return sendUnauthorized(res, "Invalid access token");
   }
 
-  const userClient = createSupabaseUserClient(accessToken);
-  const profileResult = await userClient
-    .from("profiles")
-    .select("role")
-    .eq("id", userResult.data.user.id)
-    .single();
-
-  if (profileResult.error || !profileResult.data) {
-    return sendForbidden(res, "Profile not found for this account");
-  }
+  const role = userResult.data.user.app_metadata?.role === "admin" ? "admin" : "user";
 
   req.auth = {
     userId: userResult.data.user.id,
     email: userResult.data.user.email ?? null,
-    role: profileResult.data.role,
+    role,
     accessToken,
   };
   return next();

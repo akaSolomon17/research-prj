@@ -1,34 +1,8 @@
 export type Role = "admin" | "user";
-export type OrderStatus = "pending" | "completed" | "cancelled";
 
 export interface Database {
   public: {
     Tables: {
-      profiles: {
-        Row: {
-          id: string;
-          full_name: string | null;
-          phone: string | null;
-          avatar_url: string | null;
-          role: Role;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id: string;
-          full_name?: string | null;
-          phone?: string | null;
-          avatar_url?: string | null;
-          role?: Role;
-        };
-        Update: {
-          full_name?: string | null;
-          phone?: string | null;
-          avatar_url?: string | null;
-          role?: Role;
-          updated_at?: string;
-        };
-      };
       people: {
         Row: {
           id: string;
@@ -37,12 +11,10 @@ export interface Database {
           password: string | null;
           name: string | null;
           city: string | null;
-          longitude: number | null;
           state: string | null;
           source: string | null;
           birth_date: string | null;
           zip: string | null;
-          latitude: number | null;
           created_at: string;
         };
         Insert: {
@@ -52,12 +24,10 @@ export interface Database {
           password?: string | null;
           name?: string | null;
           city?: string | null;
-          longitude?: number | null;
           state?: string | null;
           source?: string | null;
           birth_date?: string | null;
           zip?: string | null;
-          latitude?: number | null;
         };
         Update: {
           address?: string | null;
@@ -65,12 +35,10 @@ export interface Database {
           password?: string | null;
           name?: string | null;
           city?: string | null;
-          longitude?: number | null;
           state?: string | null;
           source?: string | null;
           birth_date?: string | null;
           zip?: string | null;
-          latitude?: number | null;
         };
       };
       products: {
@@ -105,43 +73,30 @@ export interface Database {
         Row: {
           id: string;
           user_id: string;
-          product_id: string | null;
+          product_id: string;
           subtotal: number;
           tax: number;
           total: number;
           discount: number;
           quantity: number;
-          code: string;
-          title: string;
-          amount: number;
-          status: OrderStatus;
           created_at: string;
-          updated_at: string;
         };
         Insert: {
           user_id: string;
-          product_id?: string | null;
+          product_id: string;
           subtotal?: number;
           tax?: number;
-          total?: number;
           discount?: number;
           quantity?: number;
-          code: string;
-          title: string;
-          amount: number;
-          status?: OrderStatus;
+          created_at?: string;
         };
         Update: {
-          product_id?: string | null;
+          product_id?: string;
           subtotal?: number;
           tax?: number;
           total?: number;
           discount?: number;
           quantity?: number;
-          title?: string;
-          amount?: number;
-          status?: OrderStatus;
-          updated_at?: string;
         };
       };
       reviews: {

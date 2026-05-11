@@ -2,47 +2,74 @@ import { Router } from "express";
 import { z } from "zod";
 
 import { createSupabaseUserClient } from "../lib/supabase.js";
-import type { OrderStatus } from "../types/database.js";
-import {
-  sendBadRequest,
-  sendNotFound,
-  sendServerError,
-  sendUnauthorized,
-} from "../utils/http.js";
-
-const orderStatus = z.enum(["pending", "completed", "cancelled"]);
+import { sendBadRequest, sendNotFound, sendServerError, sendUnauthorized } from "../utils/http.js";
 
 const listOrdersQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(50).default(10),
   search: z.string().trim().optional(),
-  status: orderStatus.optional(),
 });
 
 const createOrderSchema = z.object({
-  title: z.string().trim().min(2).max(120),
-  amount: z.coerce.number().positive(),
-  status: orderStatus.default("pending"),
   userId: z.string().uuid().optional(),
+  productId: z.string().uuid(),
+  quantity: z.coerce.number().int().min(1).default(1),
+  discount: z.coerce.number().min(0).default(0),
 });
 
 const updateOrderSchema = z
   .object({
-    title: z.string().trim().min(2).max(120).optional(),
-    amount: z.coerce.number().positive().optional(),
-    status: orderStatus.optional(),
+    userId: z.string().uuid().optional(),
+    productId: z.string().uuid().optional(),
+    quantity: z.coerce.number().int().min(1).optional(),
+    discount: z.coerce.number().min(0).optional(),
   })
   .refine((payload) => Object.keys(payload).length > 0, {
     message: "At least one field must be provided",
   });
 
-const buildOrderCode = () => `ORD-${Date.now().toString().slice(-8)}`;
-
-const applyScope = <T>(query: T, role: string, userId: string) => {
-  if (role === "admin") {
-    return query;
-  }
-  return (query as { eq: (key: string, value: string) => T }).eq("user_id", userId);
+type OrderRow = {
+  id: string;
+  user_id: string;
+  product_id: string;
+  subtotal: number;
+  tax: number;
+  total: number;
+  discount: number;
+  quantity: number;
+  created_at: string;
+  product:
+    | Array<{
+        id: string;
+        ean: string;
+        title: string;
+        category: string | null;
+        vendor: string | null;
+        price: number;
+        rating: number;
+      }>
+    | {
+        id: string;
+        ean: string;
+        title: string;
+        category: string | null;
+        vendor: string | null;
+        price: number;
+        rating: number;
+      }
+    | null;
+  person:
+    | Array<{
+        id: string;
+        name: string | null;
+        email: string | null;
+      }>
+    | {
+        id: string;
+        name: string | null;
+        email: string | null;
+      }
+    | null;
 };
 
 const parseRequest = <T>(schema: z.ZodType<T>, payload: unknown): T | null => {
@@ -52,6 +79,32 @@ const parseRequest = <T>(schema: z.ZodType<T>, payload: unknown): T | null => {
   }
   return parsed.data;
 };
+
+const applyScope = (rows: OrderRow[], role: string, userId: string) =>
+  role === "admin" ? rows : rows.filter((row) => row.user_id === userId);
+
+const firstRelation = <T>(value: T | T[] | null | undefined): T | null => {
+  if (Array.isArray(value)) {
+    return value[0] ?? null;
+  }
+  return value ?? null;
+};
+
+const toPayload = (row: OrderRow) => ({
+  id: row.id,
+  user_id: row.user_id,
+  product_id: row.product_id,
+  subtotal: row.subtotal,
+  tax: row.tax,
+  total: row.total,
+  amount: row.total,
+  discount: row.discount,
+  quantity: row.quantity,
+  title: firstRelation(row.product)?.title ?? "Order item",
+  product: firstRelation(row.product),
+  person: firstRelation(row.person),
+  created_at: row.created_at,
+});
 
 export const ordersRouter = Router();
 
@@ -65,36 +118,66 @@ ordersRouter.get("/", async (req, res) => {
     return sendBadRequest(res, "Invalid query params");
   }
 
-  const offset = (query.page - 1) * query.limit;
   const supabase = createSupabaseUserClient(req.auth.accessToken);
-  let dataQuery = applyScope(
-    supabase
-      .from("orders")
-      .select("id,user_id,code,title,amount,status,created_at,updated_at", { count: "exact" })
-      .order("created_at", { ascending: false }),
-    req.auth.role,
-    req.auth.userId,
-  );
+  const result = await supabase
+    .from("orders")
+    .select(
+      `
+        id,
+        user_id,
+        product_id,
+        subtotal,
+        tax,
+        total,
+        discount,
+        quantity,
+        created_at,
+        product:products (
+          id,
+          ean,
+          title,
+          category,
+          vendor,
+          price,
+          rating
+        ),
+        person:people (
+          id,
+          name,
+          email
+        )
+      `,
+      { count: "exact" },
+    )
+    .order("created_at", { ascending: false });
 
-  if (query.search) {
-    dataQuery = dataQuery.or(`code.ilike.%${query.search}%,title.ilike.%${query.search}%`);
-  }
-  if (query.status) {
-    dataQuery = dataQuery.eq("status", query.status);
-  }
-
-  const result = await dataQuery.range(offset, offset + query.limit - 1);
   if (result.error) {
     return sendServerError(res, result.error.message);
   }
 
+  const scopedRows = applyScope((result.data as unknown as OrderRow[] | null) ?? [], req.auth.role, req.auth.userId);
+  const search = query.search?.toLowerCase();
+  const filteredRows = search
+    ? scopedRows.filter((row) => {
+        const title = firstRelation(row.product)?.title?.toLowerCase() ?? "";
+        const ean = firstRelation(row.product)?.ean?.toLowerCase() ?? "";
+        const name = firstRelation(row.person)?.name?.toLowerCase() ?? "";
+        const email = firstRelation(row.person)?.email?.toLowerCase() ?? "";
+        return [title, ean, name, email].some((value) => value.includes(search));
+      })
+    : scopedRows;
+
+  const total = filteredRows.length;
+  const offset = (query.page - 1) * query.limit;
+  const items = filteredRows.slice(offset, offset + query.limit).map(toPayload);
+
   return res.json({
-    items: result.data ?? [],
+    items,
     pagination: {
       page: query.page,
       limit: query.limit,
-      total: result.count ?? 0,
-      totalPages: Math.max(1, Math.ceil((result.count ?? 0) / query.limit)),
+      total,
+      totalPages: Math.max(1, Math.ceil(total / query.limit)),
     },
   });
 });
@@ -109,25 +192,49 @@ ordersRouter.post("/", async (req, res) => {
     return sendBadRequest(res, "Invalid payload");
   }
 
-  const userId = req.auth.role === "admin" && payload.userId ? payload.userId : req.auth.userId;
   const supabase = createSupabaseUserClient(req.auth.accessToken);
   const result = await supabase
     .from("orders")
     .insert({
-      user_id: userId,
-      code: buildOrderCode(),
-      title: payload.title,
-      amount: payload.amount,
-      status: payload.status,
+      user_id: req.auth.role === "admin" && payload.userId ? payload.userId : req.auth.userId,
+      product_id: payload.productId,
+      quantity: payload.quantity,
+      discount: payload.discount,
     })
-    .select("id,user_id,code,title,amount,status,created_at,updated_at")
+    .select(
+      `
+        id,
+        user_id,
+        product_id,
+        subtotal,
+        tax,
+        total,
+        discount,
+        quantity,
+        created_at,
+        product:products (
+          id,
+          ean,
+          title,
+          category,
+          vendor,
+          price,
+          rating
+        ),
+        person:people (
+          id,
+          name,
+          email
+        )
+      `,
+    )
     .single();
 
   if (result.error) {
     return sendServerError(res, result.error.message);
   }
 
-  return res.status(201).json(result.data);
+  return res.status(201).json(toPayload(result.data as unknown as OrderRow));
 });
 
 ordersRouter.patch("/:id", async (req, res) => {
@@ -145,37 +252,49 @@ ordersRouter.patch("/:id", async (req, res) => {
     return sendBadRequest(res, "Invalid payload");
   }
 
-  const updatePayload: {
-    title?: string;
-    amount?: number;
-    status?: OrderStatus;
-    updated_at: string;
-  } = {
-    updated_at: new Date().toISOString(),
-  };
-  if (payload.title !== undefined) {
-    updatePayload.title = payload.title;
-  }
-  if (payload.amount !== undefined) {
-    updatePayload.amount = payload.amount;
-  }
-  if (payload.status !== undefined) {
-    updatePayload.status = payload.status;
-  }
-
   const supabase = createSupabaseUserClient(req.auth.accessToken);
-  let updateQuery = supabase
-    .from("orders")
-    .update(updatePayload)
-    .eq("id", id.data);
+  let updateQuery = supabase.from("orders").update({
+    ...(payload.userId ? { user_id: payload.userId } : {}),
+    ...(payload.productId ? { product_id: payload.productId } : {}),
+    ...(payload.quantity !== undefined ? { quantity: payload.quantity } : {}),
+    ...(payload.discount !== undefined ? { discount: payload.discount } : {}),
+  });
 
+  updateQuery = updateQuery.eq("id", id.data);
   if (req.auth.role !== "admin") {
     updateQuery = updateQuery.eq("user_id", req.auth.userId);
   }
 
   const result = await updateQuery
-    .select("id,user_id,code,title,amount,status,created_at,updated_at")
+    .select(
+      `
+        id,
+        user_id,
+        product_id,
+        subtotal,
+        tax,
+        total,
+        discount,
+        quantity,
+        created_at,
+        product:products (
+          id,
+          ean,
+          title,
+          category,
+          vendor,
+          price,
+          rating
+        ),
+        person:people (
+          id,
+          name,
+          email
+        )
+      `,
+    )
     .single();
+
   if (result.error) {
     if (result.error.code === "PGRST116") {
       return sendNotFound(res, "Order not found");
@@ -183,7 +302,7 @@ ordersRouter.patch("/:id", async (req, res) => {
     return sendServerError(res, result.error.message);
   }
 
-  return res.json(result.data);
+  return res.json(toPayload(result.data as unknown as OrderRow));
 });
 
 ordersRouter.delete("/:id", async (req, res) => {

@@ -41,6 +41,7 @@ const mapSupabaseSession = (session: Session | null): AuthSession | null => {
     user: {
       id: session.user.id,
       email: session.user.email ?? null,
+      role: session.user.app_metadata?.role === "admin" ? "admin" : "user",
     },
   };
 };
@@ -80,12 +81,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (fakeSession) {
         setProfile({
           id: fakeSession.user.id,
-          full_name: fakeSession.user.email ?? "E2E User",
-          phone: null,
-          avatar_url: null,
-          role: mapFakeRole(fakeSession.user.email ?? ""),
+          address: null,
+          email: fakeSession.user.email ?? null,
+          password: null,
+          name: fakeSession.user.email ?? "E2E User",
+          city: null,
+          state: null,
+          source: "e2e",
+          birth_date: null,
+          zip: null,
           created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
+          role: mapFakeRole(fakeSession.user.email ?? ""),
         });
       }
       setLoading(false);
@@ -140,12 +146,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setSession(fakeSession);
         setProfile({
           id: fakeSession.user.id,
-          full_name: email,
-          phone: null,
-          avatar_url: null,
-          role: mapFakeRole(email),
+          address: null,
+          email,
+          password: null,
+          name: email,
+          city: null,
+          state: null,
+          source: "e2e",
+          birth_date: null,
+          zip: null,
           created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
+          role: mapFakeRole(email),
         });
         return {};
       }

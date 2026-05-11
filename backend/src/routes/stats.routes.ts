@@ -14,7 +14,7 @@ statsRouter.get("/overview", async (req, res) => {
   const supabase = createSupabaseUserClient(req.auth.accessToken);
   let query = supabase
     .from("orders")
-    .select("status,amount,created_at")
+    .select("total,quantity,created_at")
     .order("created_at", { ascending: true });
 
   if (req.auth.role !== "admin") {

@@ -12,8 +12,8 @@ authRouter.get("/me", async (req, res) => {
 
   const supabase = createSupabaseUserClient(req.auth.accessToken);
   const profileResult = await supabase
-    .from("profiles")
-    .select("id,full_name,phone,avatar_url,role,created_at,updated_at")
+    .from("people")
+    .select("id,address,email,name,city,state,source,birth_date,zip,created_at")
     .eq("id", req.auth.userId)
     .single();
 
@@ -21,11 +21,17 @@ authRouter.get("/me", async (req, res) => {
     return sendServerError(res, profileResult.error.message);
   }
 
+  const role = req.auth.role;
+
   return res.json({
     user: {
       id: req.auth.userId,
       email: req.auth.email,
+      role,
     },
-    profile: profileResult.data,
+    profile: {
+      ...profileResult.data,
+      role,
+    },
   });
 });

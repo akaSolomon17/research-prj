@@ -1,9 +1,18 @@
--- Run in Supabase SQL Editor
+-- Reset script for a Supabase project that already has stale/old tables.
+-- Run this in Supabase SQL Editor when you need the database to match the ERD exactly.
+
+drop table if exists public.reviews cascade;
+drop table if exists public.profiles cascade;
+drop table if exists public.orders cascade;
+drop table if exists public.people cascade;
+drop table if exists public.products cascade;
+
+drop function if exists public.sync_order_totals();
+drop function if exists public.is_admin() cascade;
 
 create extension if not exists pgcrypto;
 
--- ERD table: REVIEWS
-create table if not exists public.reviews (
+create table public.reviews (
   id uuid primary key default gen_random_uuid(),
   product_id uuid not null,
   reviewer text not null,
@@ -12,8 +21,7 @@ create table if not exists public.reviews (
   created_at timestamptz not null default timezone('utc'::text, now())
 );
 
--- ERD table: PRODUCTS
-create table if not exists public.products (
+create table public.products (
   id uuid primary key default gen_random_uuid(),
   ean text not null unique,
   title text not null,
@@ -24,8 +32,7 @@ create table if not exists public.products (
   created_at timestamptz not null default timezone('utc'::text, now())
 );
 
--- ERD table: PEOPLE
-create table if not exists public.people (
+create table public.people (
   id uuid primary key,
   address text,
   email text,
@@ -39,8 +46,7 @@ create table if not exists public.people (
   created_at timestamptz not null default timezone('utc'::text, now())
 );
 
--- ERD table: ORDERS
-create table if not exists public.orders (
+create table public.orders (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null,
   product_id uuid not null,
@@ -52,12 +58,12 @@ create table if not exists public.orders (
   quantity integer not null default 1 check (quantity >= 1)
 );
 
-create index if not exists idx_reviews_product_id on public.reviews(product_id);
-create index if not exists idx_products_ean on public.products(ean);
-create index if not exists idx_people_email on public.people(email);
-create index if not exists idx_orders_user_id on public.orders(user_id);
-create index if not exists idx_orders_product_id on public.orders(product_id);
-create index if not exists idx_orders_created_at on public.orders(created_at desc);
+create index idx_reviews_product_id on public.reviews(product_id);
+create index idx_products_ean on public.products(ean);
+create index idx_people_email on public.people(email);
+create index idx_orders_user_id on public.orders(user_id);
+create index idx_orders_product_id on public.orders(product_id);
+create index idx_orders_created_at on public.orders(created_at desc);
 
 alter table public.reviews
   add constraint reviews_product_id_fkey
@@ -129,14 +135,12 @@ alter table public.products enable row level security;
 alter table public.people enable row level security;
 alter table public.orders enable row level security;
 
-drop policy if exists "reviews_select_policy" on public.reviews;
 create policy "reviews_select_policy"
 on public.reviews
 for select
 to authenticated
 using (true);
 
-drop policy if exists "reviews_manage_policy" on public.reviews;
 create policy "reviews_manage_policy"
 on public.reviews
 for all
@@ -144,14 +148,12 @@ to authenticated
 using (public.is_admin())
 with check (public.is_admin());
 
-drop policy if exists "products_select_policy" on public.products;
 create policy "products_select_policy"
 on public.products
 for select
 to authenticated
 using (true);
 
-drop policy if exists "products_manage_policy" on public.products;
 create policy "products_manage_policy"
 on public.products
 for all
@@ -159,14 +161,12 @@ to authenticated
 using (public.is_admin())
 with check (public.is_admin());
 
-drop policy if exists "people_select_policy" on public.people;
 create policy "people_select_policy"
 on public.people
 for select
 to authenticated
 using (id = auth.uid() or public.is_admin());
 
-drop policy if exists "people_update_policy" on public.people;
 create policy "people_update_policy"
 on public.people
 for update
@@ -174,35 +174,30 @@ to authenticated
 using (id = auth.uid() or public.is_admin())
 with check (id = auth.uid() or public.is_admin());
 
-drop policy if exists "people_insert_policy" on public.people;
 create policy "people_insert_policy"
 on public.people
 for insert
 to authenticated
 with check (id = auth.uid() or public.is_admin());
 
-drop policy if exists "people_delete_policy" on public.people;
 create policy "people_delete_policy"
 on public.people
 for delete
 to authenticated
 using (id = auth.uid() or public.is_admin());
 
-drop policy if exists "orders_select_policy" on public.orders;
 create policy "orders_select_policy"
 on public.orders
 for select
 to authenticated
 using (user_id = auth.uid() or public.is_admin());
 
-drop policy if exists "orders_insert_policy" on public.orders;
 create policy "orders_insert_policy"
 on public.orders
 for insert
 to authenticated
 with check (user_id = auth.uid() or public.is_admin());
 
-drop policy if exists "orders_update_policy" on public.orders;
 create policy "orders_update_policy"
 on public.orders
 for update
@@ -210,7 +205,6 @@ to authenticated
 using (user_id = auth.uid() or public.is_admin())
 with check (user_id = auth.uid() or public.is_admin());
 
-drop policy if exists "orders_delete_policy" on public.orders;
 create policy "orders_delete_policy"
 on public.orders
 for delete

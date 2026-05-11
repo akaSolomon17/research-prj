@@ -1,20 +1,19 @@
 import { request } from "@/shared/api/http";
-import type { Profile } from "@/shared/types/models";
+import type { OrderSummary, Profile } from "@/shared/types/models";
 
 interface ProfilePayload {
   profile: Profile;
-  orderSummary: {
-    total: number;
-    pending: number;
-    completed: number;
-    cancelled: number;
-  };
+  orderSummary: OrderSummary;
 }
 
 interface UpdateProfileInput {
-  fullName: string;
-  phone: string;
-  avatarUrl: string;
+  name?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+  source?: string;
+  birthDate?: string;
 }
 
 export const getProfile = (accessToken: string) =>
